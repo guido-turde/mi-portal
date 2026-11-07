@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi portal de diarios</title>
+<style>
+*{box-sizing:border-box}
+:root{--ui:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+body{margin:0;background:#bdb7ab;color:#111;font-family:var(--ui)}
+button{font-family:inherit}
+#top{position:sticky;top:0;z-index:5;background:#1c1c1c;color:#e8e8e8}
+.top-inner{max-width:1100px;margin:0 auto;padding:.55rem 1rem 0;display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem 1rem}
+.brand{font-weight:700}
+#date{font-weight:400;color:#a8a8a8;margin-left:.7rem;font-size:.85rem;text-transform:capitalize}
+#updated{margin-left:auto;font-size:.75rem;color:#999}
+#tabs{display:flex;gap:2px;width:100%;order:3;overflow-x:auto;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:0;border-top:3px solid var(--tab);border-radius:5px 5px 0 0;background:#343434;color:#c9c9c9;padding:.55rem 1rem;font-size:.86rem;font-weight:600;cursor:pointer}
+.tab:hover{background:#444}
+.tab[aria-selected=true]{background:var(--tabbg);color:var(--tabink)}
+.tab:focus-visible{outline:2px solid #fff;outline-offset:-4px}
+
+/* Hoja de papel de diario */
+.sheet{--paper:#f5f1e6;--ink:#1c1a16;--muted:#5b564a;--accent:#a00;--rule:#bdb6a4;
+  --head:Georgia,serif;--body:Georgia,serif;--align:justify;--head-weight:700;
+  --mast-bg:transparent;--mast-ink:#1c1a16;--mast-font:Georgia,serif;--mast-weight:700;--mast-size:3.6rem;
+  --mast-case:none;--mast-ls:0;--mast-style:normal;
+  position:relative;max-width:1100px;margin:0 auto 2rem;min-height:70vh;color:var(--ink);
+  background:linear-gradient(90deg,rgba(60,40,10,.07),transparent 3.5%,transparent 96.5%,rgba(60,40,10,.08)),
+    radial-gradient(rgba(90,70,30,.06) 1px,transparent 1.6px) 0 0/5px 5px,var(--paper);
+  box-shadow:0 1px 2px rgba(0,0,0,.35),0 12px 32px rgba(0,0,0,.3)}
+.sheet::after{content:"";position:absolute;left:0;right:0;top:50%;height:3px;pointer-events:none;
+  background:linear-gradient(transparent,rgba(0,0,0,.07),rgba(255,255,255,.3),transparent)}
+.mast{padding:1.2rem 1.6rem 0}
+.plate{background:var(--mast-bg);color:var(--mast-ink);text-align:center;padding:.8rem 1rem .7rem}
+.mast h1{margin:0;font-family:var(--mast-font);font-weight:var(--mast-weight);font-style:var(--mast-style);font-size:var(--mast-size);line-height:1;text-transform:var(--mast-case);letter-spacing:var(--mast-ls)}
+.dateline{display:flex;justify-content:space-between;gap:1rem;margin-top:.55rem;padding:.3rem .1rem;border-top:1px solid var(--ink);border-bottom:3px double var(--ink);font-family:var(--body);font-variant:small-caps;letter-spacing:.05em;font-size:.92rem}
+.pad{padding:1.1rem 1.6rem 1.5rem}
+a.hl{color:inherit;text-decoration:none}
+a.hl:hover,a.hl:focus-visible{color:var(--accent);text-decoration:underline}
+.meta{margin:0 0 .25rem;font-family:var(--body);font-variant:small-caps;letter-spacing:.05em;font-size:.88rem;color:var(--accent)}
+.sheet img{mix-blend-mode:multiply;filter:grayscale(.25) contrast(1.06)}
+
+.front{display:grid;grid-template-columns:2fr 1fr;gap:0 1.6rem;padding-bottom:1.1rem;margin-bottom:1.1rem;border-bottom:1px solid var(--ink)}
+.lead{padding-right:1.6rem;border-right:1px solid var(--rule)}
+.lead img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block;margin-bottom:.7rem}
+.lead h2{margin:0 0 .6rem;font-family:var(--head);font-weight:var(--head-weight);font-size:2.7rem;line-height:1.04;letter-spacing:-.01em}
+.lead p.sum{margin:0;font-family:var(--body);font-size:1.08rem;line-height:1.5;text-align:var(--align);hyphens:auto}
+.lead p.sum::first-letter,.reader .lede::first-letter{float:left;font-family:var(--head);font-weight:700;font-size:3.5em;line-height:.82;padding:.05em .09em 0 0;color:var(--accent)}
+.side .story h3{font-size:1.4rem;line-height:1.12}
+.side .story:last-child{border:0;margin:0;padding:0}
+.cols{column-count:4;column-gap:1.6rem;column-rule:1px solid var(--rule)}
+.story{break-inside:avoid;margin:0 0 .95rem;padding:0 0 .95rem;border-bottom:1px solid var(--rule)}
+.story img{width:100%;aspect-ratio:3/2;object-fit:cover;display:block;margin-bottom:.45rem}
+.story h3{margin:0 0 .3rem;font-family:var(--head);font-weight:var(--head-weight);font-size:1.12rem;line-height:1.15}
+.story p.sum{margin:0;font-family:var(--body);font-size:.9rem;line-height:1.42;text-align:var(--align);hyphens:auto}
+
+.empty{padding:2rem 0;font-size:1.05rem;line-height:1.5}
+.empty a{color:var(--accent)}
+.reader{max-width:760px;margin:0 auto;padding:1.2rem 1.6rem 2.4rem}
+.reader.wide{max-width:960px}
+.back{border:1px solid var(--ink);background:transparent;color:var(--ink);padding:.4rem .8rem;border-radius:2px;font-size:.85rem;cursor:pointer;margin-bottom:1.1rem}
+.back:hover{border-color:var(--accent);color:var(--accent)}
+.reader h2{margin:0 0 .8rem;padding-bottom:.7rem;border-bottom:3px double var(--ink);font-family:var(--head);font-weight:var(--head-weight);font-size:2.6rem;line-height:1.05}
+.reader figure{margin:1rem 0}
+.reader figure img{width:100%;display:block}
+.reader .lede{margin:0 0 1rem;font-family:var(--body);font-size:1.18rem;line-height:1.6;text-align:var(--align);hyphens:auto}
+.paras{columns:2 20rem;column-gap:1.8rem;column-rule:1px solid var(--rule)}
+.reader p.para{margin:0 0 .9rem;font-family:var(--body);font-size:1.05rem;line-height:1.6;text-align:var(--align);hyphens:auto}
+.reader .note{margin:1.2rem 0 0;font-family:var(--body);font-style:italic;font-size:.95rem;color:var(--muted)}
+.reader a.orig{display:inline-block;margin-top:1rem;padding:.7rem 1.1rem;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;font-size:.95rem}
+.reader a.orig:hover{filter:brightness(1.12)}
+footer{max-width:1100px;margin:0 auto 2.5rem;padding:0 1rem;font-size:.78rem;color:#5d5a52;line-height:1.5}
+@media(max-width:1000px){.cols{column-count:3}}
+@media(max-width:860px){.cols{column-count:2}.front{grid-template-columns:1fr}.lead{padding-right:0;border-right:0;border-bottom:1px solid var(--rule);margin-bottom:1rem;padding-bottom:1rem}.mast h1{font-size:calc(var(--mast-size)*.75)}}
+@media(max-width:560px){.cols{column-count:1;column-rule:0}.lead h2,.reader h2{font-size:1.8rem}.pad,.mast,.reader{padding-left:1rem;padding-right:1rem}#updated{margin-left:0;width:100%}.dateline{font-size:.8rem}}
+@media print{#top,footer,.back{display:none}.sheet{box-shadow:none;margin:0}.sheet::after{display:none}body{background:#fff}}
+</style>
+</head>
+<body>
+<header id="top">
+  <div class="top-inner">
+    <div class="brand">Mi portal<span id="date"></span></div>
+    <div id="updated"></div>
+    <nav id="tabs" role="tablist" aria-label="Diarios"></nav>
+  </div>
+</header>
+<main id="paper" class="sheet"></main>
+<footer>Los titulares, resúmenes y fotos vienen de los feeds RSS públicos de cada diario. Las notas completas, con su paywall si lo tienen, están en el sitio original.</footer>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+(function () {
+  const SERIF = 'Georgia,"Times New Roman",Times,serif';
+  const TIMES = '"Times New Roman",Times,serif';
+  const SANS = '"Helvetica Neue",Helvetica,Arial,sans-serif';
+  const TR = 'transparent';
+
+  // Un tema por diario (papel, tinta, color de acento y cabecera). Editá acá.
+  const THEMES = {
+    lanacion: { paper:'#f3eee0', ink:'#1c1a16', muted:'#5b564a', accent:'#1b365d', rule:'#b9b19b',
+      head:TIMES, body:SERIF, mastBg:TR, mastInk:'#1b365d', mastFont:TIMES, mastWeight:'700',
+      mastSize:'4.2rem', mastCase:'uppercase', mastLs:'.08em' },
+    pagina12: { paper:'#f6f3ea', ink:'#161412', muted:'#59554c', accent:'#d3202b', rule:'#bdb7a8',
+      head:SANS, body:SERIF, headWeight:'800', mastBg:TR, mastInk:'#161412', mastFont:SANS,
+      mastWeight:'800', mastSize:'4rem', mastLs:'-.035em' },
+    guardian: { paper:'#f7f4ec', ink:'#1a1a1a', muted:'#57554e', accent:'#005689', rule:'#c5bfae',
+      head:SERIF, body:SERIF, mastBg:'#052962', mastInk:'#ffffff', mastFont:SERIF,
+      mastWeight:'400', mastSize:'3.8rem', mastLs:'-.01em' },
+    bbc: { paper:'#f5f3ee', ink:'#151515', muted:'#5a5852', accent:'#bb1919', rule:'#c4c0b6',
+      head:SANS, body:SANS, align:'left', headWeight:'800', mastBg:'#bb1919', mastInk:'#ffffff',
+      mastFont:SANS, mastWeight:'800', mastSize:'3.2rem', mastCase:'uppercase', mastLs:'.02em' },
+    dw: { paper:'#f4f4f0', ink:'#17283a', muted:'#505c68', accent:'#0a6fb5', rule:'#c3c8cc',
+      head:SANS, body:SANS, align:'left', headWeight:'800', mastBg:'#002d5a', mastInk:'#ffffff',
+      mastFont:SANS, mastWeight:'800', mastSize:'3.6rem', mastLs:'.01em' },
+    bz: { paper:'#f3f0e8', ink:'#141414', muted:'#5a5851', accent:'#c4161c', rule:'#bfbaae',
+      head:SERIF, body:SERIF, mastBg:TR, mastInk:'#141414', mastFont:SANS, mastWeight:'800',
+      mastSize:'3.9rem', mastLs:'-.04em' },
+    spiegel: { paper:'#f6f4ee', ink:'#1a1a1a', muted:'#5b5951', accent:'#e64415', rule:'#c6c0b4',
+      head:SANS, body:SERIF, headWeight:'800', mastBg:'#e64415', mastInk:'#ffffff', mastFont:SANS,
+      mastWeight:'800', mastSize:'3.3rem', mastCase:'uppercase', mastLs:'.04em' }
+  };
+  const FALLBACK = { paper:'#f5f1e6', accent:'#444', mastBg:TR, mastInk:'#111' };
+  const VARS = { paper:'--paper', ink:'--ink', muted:'--muted', accent:'--accent', rule:'--rule',
+    head:'--head', body:'--body', align:'--align', headWeight:'--head-weight', mastBg:'--mast-bg',
+    mastInk:'--mast-ink', mastFont:'--mast-font', mastWeight:'--mast-weight', mastSize:'--mast-size',
+    mastCase:'--mast-case', mastLs:'--mast-ls' };
+
+  const $ = (s) => document.querySelector(s);
+  const paper = $('#paper');
+  const tabsEl = $('#tabs');
+  let current = null;
+  let inReader = false;
+  let scrollMemo = 0;
+
+  // Abierta directamente, la plantilla no tiene datos: los pone build.py.
+  if (!DATA) {
+    paper.style.padding = '2rem 1.6rem';
+    paper.textContent = 'Esta es la plantilla sin datos. La página con las noticias se genera al correr build.py (o el workflow de GitHub): el resultado queda en site/index.html.';
+    return;
+  }
+
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function fmtWhen(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('es', { day:'numeric', month:'short', hour:'2-digit',
+      minute:'2-digit', timeZone:'Europe/Berlin' });
+  }
+
+  function photo(url) {
+    const i = new Image();
+    i.loading = 'lazy';
+    i.referrerPolicy = 'no-referrer';
+    i.alt = '';
+    i.addEventListener('error', () => i.remove());
+    i.src = url;
+    return i;
+  }
+
+  function applyTheme(src) {
+    const t = THEMES[src.id] || {};
+    paper.lang = src.lang || 'es';
+    for (const k in VARS) {
+      if (t[k]) paper.style.setProperty(VARS[k], t[k]);
+      else paper.style.removeProperty(VARS[k]);
+    }
+  }
+
+  function masthead(src) {
+    const m = el('header', 'mast');
+    const plate = el('div', 'plate');
+    plate.append(el('h1', null, src.name));
+    const line = el('div', 'dateline');
+    line.append(
+      el('span', null, new Date(DATA.generated).toLocaleDateString(src.lang || 'es', { weekday:'long',
+        day:'numeric', month:'long', year:'numeric', timeZone:'Europe/Berlin' })),
+      el('span', null, src.tagline || ''));
+    m.append(plate, line);
+    return m;
+  }
+
+  // Un clic normal abre la nota en el lector; con Ctrl/Cmd abre el original.
+  function noteLink(src, item, cls, text) {
+    const a = el('a', cls, text);
+    a.href = item.link;
+    a.addEventListener('click', (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      e.preventDefault();
+      openReader(src, item);
+    });
+    return a;
+  }
+
+  function leadEl(src, item) {
+    const box = el('article', 'lead');
+    if (item.image) {
+      const a = noteLink(src, item, 'hl');
+      a.setAttribute('aria-hidden', 'true');
+      a.tabIndex = -1;
+      a.append(photo(item.image));
+      box.append(a);
+    }
+    if (item.published) box.append(el('p', 'meta', fmtWhen(item.published)));
+    const h = el('h2');
+    h.append(noteLink(src, item, 'hl', item.title));
+    box.append(h);
+    if (item.summary) box.append(el('p', 'sum', item.summary));
+    return box;
+  }
+
+  function storyEl(src, item, plain) {
+    const box = el('article', 'story');
+    if (item.image && !plain) {
+      const a = noteLink(src, item, 'hl');
+      a.setAttribute('aria-hidden', 'true');
+      a.tabIndex = -1;
+      a.append(photo(item.image));
+      box.append(a);
+    }
+    if (item.published) box.append(el('p', 'meta', fmtWhen(item.published)));
+    const h = el('h3');
+    h.append(noteLink(src, item, 'hl', item.title));
+    box.append(h);
+    if (item.summary) box.append(el('p', 'sum', item.summary));
+    return box;
+  }
+
+  function renderFront(src) {
+    inReader = false;
+    paper.replaceChildren(masthead(src));
+    const body = el('div', 'pad');
+    if (!src.items.length) {
+      const e = el('div', 'empty');
+      e.append(el('p', null, 'Hoy no se pudo cargar este diario.'));
+      if (src.error) e.append(el('p', 'meta', src.error));
+      const a = el('a', null, 'Abrir ' + src.name + ' en su sitio');
+      a.href = src.home;
+      e.append(a);
+      body.append(e);
+    } else {
+      let li = src.items.findIndex((it, i) => i < 5 && it.image);
+      if (li < 0) li = 0;
+      const rest = src.items.filter((_, i) => i !== li);
+      const front = el('div', 'front');
+      front.append(leadEl(src, src.items[li]));
+      const side = el('div', 'side');
+      rest.slice(0, 3).forEach((it) => side.append(storyEl(src, it, true)));
+      front.append(side);
+      body.append(front);
+      const cols = el('div', 'cols');
+      rest.slice(3).forEach((it) => cols.append(storyEl(src, it)));
+      body.append(cols);
+    }
+    paper.append(body);
+  }
+
+  function openReader(src, item) {
+    scrollMemo = window.scrollY;
+    inReader = true;
+    const hasBody = item.body && item.body.length;
+    const r = el('article', 'reader' + (hasBody ? ' wide' : ''));
+    const back = el('button', 'back', 'Volver a ' + src.name);
+    back.type = 'button';
+    back.addEventListener('click', closeReader);
+    r.append(back);
+    if (item.published) r.append(el('p', 'meta', fmtWhen(item.published)));
+    r.append(el('h2', null, item.title));
+    if (item.image) {
+      const f = el('figure');
+      f.append(photo(item.image));
+      r.append(f);
+    }
+    if (hasBody) {
+      const box = el('div', 'paras');
+      item.body.forEach((p) => box.append(el('p', 'para', p)));
+      r.append(box);
+    } else {
+      if (item.summary) r.append(el('p', 'lede', item.summary));
+      r.append(el('p', 'note', 'El feed de ' + src.name + ' trae solo el resumen de esta nota.'));
+    }
+    const orig = el('a', 'orig', 'Leer la nota completa en ' + src.name);
+    orig.href = item.link;
+    orig.target = '_blank';
+    orig.rel = 'noopener noreferrer';
+    r.append(orig);
+    paper.replaceChildren(masthead(src), r);
+    window.scrollTo(0, 0);
+  }
+
+  function closeReader() {
+    renderFront(current);
+    window.scrollTo(0, scrollMemo);
+  }
+
+  function showTab(id, fromHash) {
+    const src = DATA.sources.find((s) => s.id === id) || DATA.sources[0];
+    current = src;
+    applyTheme(src);
+    renderFront(src);
+    [...tabsEl.children].forEach((b) => b.setAttribute('aria-selected', String(b.dataset.id === src.id)));
+    if (!fromHash) history.replaceState(null, '', '#' + src.id);
+    window.scrollTo(0, 0);
+  }
+
+  function step(delta) {
+    const ids = DATA.sources.map((s) => s.id);
+    const i = (ids.indexOf(current.id) + delta + ids.length) % ids.length;
+    showTab(ids[i]);
+  }
+
+  // Cabecera y pestañas
+  const gen = new Date(DATA.generated);
+  $('#date').textContent = gen.toLocaleDateString('es', { weekday:'long', day:'numeric',
+    month:'long', year:'numeric', timeZone:'Europe/Berlin' });
+  $('#updated').textContent = 'Actualizado a las ' + gen.toLocaleTimeString('es',
+    { hour:'2-digit', minute:'2-digit', timeZone:'Europe/Berlin' }) + ', hora de Berlín';
+
+  DATA.sources.forEach((s) => {
+    const t = Object.assign({}, FALLBACK, THEMES[s.id]);
+    const b = el('button', 'tab', s.name);
+    b.type = 'button';
+    b.role = 'tab';
+    b.dataset.id = s.id;
+    b.style.setProperty('--tab', t.accent);
+    b.style.setProperty('--tabbg', t.mastBg === TR ? t.paper : t.mastBg);
+    b.style.setProperty('--tabink', t.mastInk);
+    b.addEventListener('click', () => showTab(s.id));
+    tabsEl.append(b);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Escape' && inReader) closeReader();
+    else if (e.key === 'ArrowRight') step(1);
+    else if (e.key === 'ArrowLeft') step(-1);
+  });
+  window.addEventListener('hashchange', () => showTab(location.hash.slice(1), true));
+
+  showTab(location.hash.slice(1), true);
+})();
+</script>
+</body>
+</html>
