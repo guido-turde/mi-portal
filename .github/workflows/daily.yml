@@ -1,0 +1,67 @@
+name: Portal diario
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Chequear hora de Berlin
+        id: gate
+        run: |
+          HOUR=$(TZ=Europe/Berlin date +%H)
+          echo "Hora en Berlin: $HOUR"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HOUR" != "06" ]; then
+            echo "Esta no es la ejecucion de las 6 de la manana, se omite."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        if: steps.gate.outputs.run == 'true'
+        run: pip install -r requirements.txt
+
+      - name: Generar la pagina
+        if: steps.gate.outputs.run == 'true'
+        run: python build.py
+
+      - uses: actions/configure-pages@v5
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.gate.outputs.run == 'true'
+        with:
+          path: site
+
+      - name: Publicar
+        id: deployment
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/deploy-pages@v4
