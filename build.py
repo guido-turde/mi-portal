@@ -6,17 +6,30 @@ Resultado:  site/index.html (abrilo con el navegador)
 """
 import html
 import json
+import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
 import feedparser
+import requests
+import trafilatura
 
 ROOT = Path(__file__).parent
 MAX_ITEMS = 24          # notas por diario
 MAX_SUMMARY = 520       # caracteres del resumen
-UA = "Mozilla/5.0 (compatible; MiPortal/1.0; lector personal de noticias)"
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+HEADERS = {"User-Agent": UA, "Accept-Language": "es,en;q=0.8,de;q=0.6",
+           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+
+# Texto completo de las notas: solo si el workflow lo pide (PORTAL_FULLTEXT=1).
+# Activalo únicamente si la página publicada es privada (Cloudflare Access o contraseña).
+FULLTEXT = os.environ.get("PORTAL_FULLTEXT") == "1"
+FULLTEXT_PER_SOURCE = 12   # cuántas notas por diario (las primeras del feed)
+MAX_PARAGRAPHS = 80
 
 # ---------------------------------------------------------------------------
 # DIARIOS. Para agregar, quitar o reordenar pestañas, editá esta lista.
@@ -107,16 +120,48 @@ def to_iso(entry):
     return datetime(*t[:6], tzinfo=timezone.utc).isoformat()
 
 
+def extract_body(url, summary, title):
+    """Baja la nota y devuelve sus párrafos, o None si no se pudo (bloqueo, paywall)."""
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=15)
+        if r.status_code != 200 or "html" not in r.headers.get("content-type", ""):
+            return None
+        text = trafilatura.extract(r.content, include_comments=False, include_tables=False,
+                                   favor_precision=True, output_format="txt")
+    except Exception:
+        return None
+    if not text:
+        return None
+    paras = [p.strip() for p in text.split("\n") if p.strip()]
+    if paras and (paras[0] in title or title in paras[0]):
+        paras = paras[1:]   # el extractor repite el titular como primer párrafo
+    # Si casi no hay más texto que el resumen, es un bloqueo o un paywall: no sirve.
+    if sum(len(p) for p in paras) < len(summary) + 300:
+        return None
+    return paras[:MAX_PARAGRAPHS]
+
+
+def add_full_text(items):
+    targets = items[:FULLTEXT_PER_SOURCE]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        bodies = list(pool.map(lambda it: extract_body(it["link"], it["summary"], it["title"]), targets))
+    for item, body in zip(targets, bodies):
+        if body:
+            item["body"] = body
+    return sum(1 for b in bodies if b)
+
+
 def fetch_source(src):
     items, seen, errors = [], set(), []
     for url in src["feeds"]:
         try:
-            feed = feedparser.parse(url, agent=UA)
+            feed = feedparser.parse(url, agent=UA, request_headers={"Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8"})
             status = feed.get("status")
             if status and status >= 400:
                 raise RuntimeError(f"HTTP {status}")
             if not feed.entries:
-                raise RuntimeError(str(feed.get("bozo_exception") or "feed vacío"))
+                ctype = (feed.get("headers") or {}).get("content-type")
+                raise RuntimeError(f"{feed.get('bozo_exception') or 'feed vacío'} [HTTP {status}, {ctype}]")
         except Exception as exc:  # un diario caído no debe frenar a los demás
             errors.append(f"{url}: {exc}")
             continue
@@ -134,7 +179,6 @@ def fetch_source(src):
                 "link": link,
                 "image": pick_image(e, raw),
                 "published": to_iso(e),
-                # Etapa 2: acá va "body": ["párrafo 1", "párrafo 2", ...]
             })
             if len(items) >= MAX_ITEMS:
                 break
@@ -153,7 +197,11 @@ def main():
         sources.append(result)
         status = "OK " if result["items"] else "ERR"
         extra = f"  ({result['error']})" if result["error"] else ""
-        print(f"{status} {result['name']:<18} {len(result['items']):>2} notas{extra}")
+        full = ""
+        if FULLTEXT and result["items"]:
+            n = add_full_text(result["items"])
+            full = f", {n} con texto completo"
+        print(f"{status} {result['name']:<18} {len(result['items']):>2} notas{full}{extra}")
 
     if not any(s["items"] for s in sources):
         sys.exit("Ningún feed respondió; no se genera la página.")
