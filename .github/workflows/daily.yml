@@ -10,19 +10,14 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: deploy
   cancel-in-progress: false
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Chequear hora de Berlin
         id: gate
@@ -30,7 +25,6 @@ jobs:
           HOUR=$(TZ=Europe/Berlin date +%H)
           echo "Hora en Berlin: $HOUR"
           if [ "${{ github.event_name }}" = "schedule" ] && [ "$HOUR" != "06" ]; then
-            echo "Esta no es la ejecucion de las 6 de la manana, se omite."
             echo "run=false" >> "$GITHUB_OUTPUT"
           else
             echo "run=true" >> "$GITHUB_OUTPUT"
@@ -53,15 +47,19 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: python build.py
 
-      - uses: actions/configure-pages@v5
+      - name: Crear proyecto en Cloudflare (solo la primera vez)
         if: steps.gate.outputs.run == 'true'
-
-      - uses: actions/upload-pages-artifact@v3
-        if: steps.gate.outputs.run == 'true'
+        uses: cloudflare/wrangler-action@v3
+        continue-on-error: true
         with:
-          path: site
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create mi-portal --production-branch=main
 
-      - name: Publicar
-        id: deployment
+      - name: Publicar en Cloudflare Pages
         if: steps.gate.outputs.run == 'true'
-        uses: actions/deploy-pages@v4
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy site --project-name=mi-portal --branch=main
