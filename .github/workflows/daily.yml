@@ -47,6 +47,14 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: python build.py
         
+      - name: Probar secretos
+        env:
+          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          A: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$T" ]; then echo "TOKEN: VACIO"; else echo "TOKEN: llego, largo ${#T}"; fi
+          if [ -z "$A" ]; then echo "ACCOUNT ID: VACIO"; else echo "ACCOUNT ID: llego, largo ${#A}"; fi
+
       - name: Crear proyecto en Cloudflare (solo la primera vez)
         if: steps.gate.outputs.run == 'true'
         uses: cloudflare/wrangler-action@v3
