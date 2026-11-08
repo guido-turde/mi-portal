@@ -1,2 +1,4 @@
 feedparser>=6.0
 tzdata
+requests
+trafilatura
